@@ -8,9 +8,49 @@ Tracking doc for implementing [apache/superset#24271](https://github.com/apache/
 - [x] Researched the current Extensions system (contribution types, storage API, gaps)
 - [x] Filed [apache/superset#44095](https://github.com/apache/superset/issues/44095) for the dead
       `quick-start.md` example-extension reference
-- [ ] Phase 0: core extension points (toast trigger + global menu/view area) — in progress on
-      `superset-testbed3` branch `feat/extensions-notifications-poc`
+- [x] Phase 0 code written on `superset-testbed3` branch `feat/extensions-notifications-poc`
+      (staged, not yet committed — blocked on an unrelated pre-existing `react-window`
+      version mismatch breaking the local Type-Checking pre-commit hook; fixing via `npm ci`
+      before committing, per Evan's call)
+- [ ] Phase 0 PR opened as a draft against apache/superset
 - [ ] Phase 1: the extension itself (this repo)
+
+## Phase 0 findings (implementation, not just research)
+
+Turned out smaller than the research pass feared, because the `views`/`menus` registries in
+`superset-frontend/src/core/{views,menus}/index.ts` were already fully generic
+(`registerView(view, location, component)` / `registerMenuItem(item, location, group)` take an
+arbitrary `location` string) — SQL Lab was just the only *consumer* so far, via
+`src/SqlLab/contributions.ts`'s `ViewLocations` constants and the reusable
+`<ViewListExtension viewId={location} />` renderer. Nothing SQL-Lab-specific in the registries
+themselves.
+
+What actually got built:
+- `ExtensionContext.window` (`showInformationMessage`/`showWarningMessage`/`showErrorMessage`) —
+  thin wrapper over the existing toast action creators, dispatched directly against the
+  `store` singleton (`src/views/store.ts`) rather than via a hook, since it must also work from
+  non-component extension code like a command callback.
+- `GlobalLocations.settings.{menu,panel}` (new `src/core/contributions.ts`, mirroring
+  `SqlLab/contributions.ts`) — a menus location consumed by `RightMenu.tsx`'s Settings dropdown
+  (new "Extensions" group, exactly mirroring `PanelToolbar`'s existing
+  `commands.getCommand`/`executeCommand` pattern) and a views location for whatever an
+  extension registers to host at the new route below.
+- A new generic route, `/extensions/view/:viewId` (`src/pages/ExtensionView`), hosting a single
+  extension-registered view. Needed because `resolveView` is host-internal
+  (`src/core/views/index.ts`), not exported through the public `@apache-superset/core` SDK —
+  extensions can't render their own registered views directly, the host has to.
+- **Permission registration turned out to already work, no new code needed.**
+  `superset/core/api/core_api_injection.py`'s `add_api()` calls
+  `appbuilder.add_api(api_class)` + `appbuilder._add_permission(view, True)` — the real FAB
+  registration path core APIs use. A `@permission_name(...)` on an extension's own `@api`
+  endpoint already produces a genuine, distinct permission visible in the role editor.
+
+Tests: `ExtensionContext.test.ts` (4 new cases for `.window`, mocking `src/views/store` since
+it transitively pulls in the full dashboard/explore/chart reducer tree and assumes bootstrap
+data is already hydrated — true in a real browser by the time extension code runs, not true in
+the unit test environment) and `RightMenu.test.tsx` (1 new case registering a real command +
+menu item and asserting it renders in the opened Settings dropdown). All green;
+`npx tsc --noEmit -p tsconfig.json` clean; oxlint/oxfmt clean.
 
 ## Why this needs Phase 0 first
 
