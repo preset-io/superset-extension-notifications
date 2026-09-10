@@ -16,12 +16,57 @@ Tracking doc for implementing [apache/superset#24271](https://github.com/apache/
 - [x] Phase 1 scaffolded: backend CRUD + active-notification lookup, admin
       screen, polling/toast hook all written, type-checked, and building
       clean via `superset-extensions build` (2026-09-09)
+- [x] Phase 1 automated tests: 41 backend (pytest) + 12 frontend (Jest)
+      passing (2026-09-10)
 - [ ] Phase 1: manual end-to-end test against a running `superset-testbed3`
       (branch `feat/extensions-notifications-poc`) with `ENABLE_EXTENSIONS`
-      on
-- [ ] Phase 1: tests (backend `models.py`/`storage.py`/`api.py`, frontend
-      `AdminPanel`/`useNotificationPolling`) — none written yet, only
-      ad hoc manual verification of the validation/`is_effective` logic
+      on — in progress
+
+## Testing (2026-09-10)
+
+- **Backend** (`extension/backend/tests/`): `test_models.py` (41 cases:
+  every `from_request` validation branch, `to_dict`/`from_dict` roundtrip,
+  `is_effective` across role targeting, absolute-window boundaries, daily
+  timeframe incl. overnight wraparound, and the two windows combined) and
+  `test_storage.py` (CRUD roundtrip + pagination against a fake in-memory
+  `PersistentStateAccessor`, since `get_context()` only resolves to
+  something real inside a running Superset process). `api.py` itself
+  can't be unit-tested the same way -- confirmed directly, its `@api`
+  decorator raises `NotImplementedError` when imported outside a running
+  host -- so its route/permission wiring is covered by the end-to-end pass
+  instead. Backend package made installable (`pip install -e
+  extension/backend`, added `[build-system]`/`packages.find` to
+  `pyproject.toml`) so pytest can import `community.notifications.*`
+  normally.
+- **Frontend** (`extension/frontend/src/*.test.{ts,tsx}`, Jest +
+  `@testing-library/react`, `babel-jest`): `useNotificationPolling.test.ts`
+  (6 cases, fake timers) is fully green, covering category routing,
+  no-retrigger vs. retrigger-elapsed re-showing, teardown, and a failed
+  poll not throwing. `AdminPanel.test.tsx` covers list rendering, column
+  formatting (roles/active/category), one-row-per-notification, the New
+  Notification action being present, and a load failure surfacing via
+  `ctx.window.showErrorMessage`.
+  **Not covered by the automated suite:** the actual create/edit/delete
+  *flows* (click a button, fill the Modal form, submit). Every one of
+  those tests was written and reliably hung past any timeout in this
+  jsdom environment specifically -- confirmed via progressively narrower
+  isolated repros that a bare open Modal, a click-opened Modal, a
+  Modal+`Form.useForm()`, and a full Table+Modal+Form+Popconfirm harness
+  all work fine (109ms-1.2s), so it isn't Modal, Form, or Popconfirm in
+  isolation. Ruled out, with evidence: the React-18-scheduler
+  `MessageChannel` leak (real Node's leaks a handle but doesn't cause the
+  hang itself -- fixed anyway via `forceExit: true` and a synchronous
+  microtask shim in `jest.setup.ts`), `jest.mock('./api')` auto-mocking
+  vs. an explicit manual mock, and `rc-trigger`'s
+  `getBoundingClientRect`-based popup positioning (polyfilled anyway,
+  didn't fix it). Root cause not pinned down. Rather than keep spending
+  time on jsdom-specific archaeology, these flows get real (and more
+  trustworthy) coverage in the end-to-end pass against an actual browser,
+  where this category of jsdom/React-scheduler interop bug doesn't apply.
+  Setup added along the way that's worth keeping regardless:
+  `jest.setup.ts`'s `matchMedia`/`ResizeObserver`/`getBoundingClientRect`
+  polyfills and the `MessageChannel` shim are standard requirements for
+  testing antd components in jsdom at all.
 
 ## Phase 0 findings (implementation, not just research)
 

@@ -195,7 +195,7 @@ const AdminPanel: React.FC = () => {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={handleSubmit}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" initialValues={EMPTY_DRAFT}>
           <Form.Item name="name" label="Name" rules={[{ required: true }]}>
