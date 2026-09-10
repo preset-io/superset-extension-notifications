@@ -9,11 +9,19 @@ Tracking doc for implementing [apache/superset#24271](https://github.com/apache/
 - [x] Filed [apache/superset#44095](https://github.com/apache/superset/issues/44095) for the dead
       `quick-start.md` example-extension reference
 - [x] Phase 0 code written on `superset-testbed3` branch `feat/extensions-notifications-poc`
-      (staged, not yet committed — blocked on an unrelated pre-existing `react-window`
-      version mismatch breaking the local Type-Checking pre-commit hook; fixing via `npm ci`
-      before committing, per Evan's call)
-- [ ] Phase 0 PR opened as a draft against apache/superset
-- [ ] Phase 1: the extension itself (this repo)
+- [x] Phase 0 PR opened as a draft against apache/superset:
+      [apache/superset#44101](https://github.com/apache/superset/pull/44101)
+      (open, mergeable, CI green aside from a benign Showtime cancellation — no
+      maintainer review yet as of 2026-09-09)
+- [x] Phase 1 scaffolded: backend CRUD + active-notification lookup, admin
+      screen, polling/toast hook all written, type-checked, and building
+      clean via `superset-extensions build` (2026-09-09)
+- [ ] Phase 1: manual end-to-end test against a running `superset-testbed3`
+      (branch `feat/extensions-notifications-poc`) with `ENABLE_EXTENSIONS`
+      on
+- [ ] Phase 1: tests (backend `models.py`/`storage.py`/`api.py`, frontend
+      `AdminPanel`/`useNotificationPolling`) — none written yet, only
+      ad hoc manual verification of the validation/`is_effective` logic
 
 ## Phase 0 findings (implementation, not just research)
 
@@ -79,23 +87,86 @@ escalate to a real SIP if there's contention on review.
 
 ## Phase 1 — the extension (this repo)
 
-- Backend: extension-owned REST API for notification CRUD (this
-  contribution type already works today), each notification stored as one
-  Tier-3 storage record (`resource_type="notification"`), target roles
-  stored inline in the record (no second relational table needed — Tier 3
-  storage is a namespaced KV store, not arbitrary-relational).
-- Backend: an "active notifications for current user" endpoint doing
-  role/time-window filtering in Python over `list()` results (Tier 3 has no
-  arbitrary-WHERE query support).
-- Frontend: interval-polling hook (matches the original SIP design) firing
-  toasts via the new Phase-0 toast surface.
-- Frontend: admin management screen via the new Phase-0 menu/view area,
-  replicating the SIP's mockups (active toggle, name, category, message,
-  time range, daily-timeframe toggle, retrigger interval, duration, roles).
-- `ENABLE_UI_NOTIFICATIONS` becomes an extension-level admin setting
-  (Tier-3-stored toggle), not a real Superset `FeatureFlag` — no
-  extension-specific feature-flag mechanism exists beyond the global
-  `ENABLE_EXTENSIONS` switch.
+Scaffolded via `superset-extensions init --frontend --backend`
+(publisher `community`, name `notifications`) into `extension/`, then
+built out:
+
+- Backend (`extension/backend/src/community/notifications/`):
+  - `models.py` — the `Notification` dataclass, request validation
+    (`from_request`), and `is_effective(now, user_role_names)` (active flag,
+    role targeting, absolute window, daily timeframe incl. overnight
+    wraparound). Verified against real inputs, not just read over — see
+    the manual test run logged 2026-09-09.
+  - `storage.py` — each notification is one entry in the extension's own
+    Tier-3 **shared** persistent storage (`ctx.storage.persistent.shared`),
+    keyed by its own uuid. Plan originally called for `resource_type`
+    tagging, dropped once implementation showed the *ambient* accessor's
+    `set()` doesn't expose `resource_type`/`resource_uuid` (only the
+    lower-level `ExtensionStorageDAO` does, and its own `create()` always
+    raises by design) — moot anyway since this extension is the sole owner
+    of its storage scope, so a plain full `list()` is sufficient.
+  - `api.py` — one `RestApi` class, `community_notifications`: `GET/POST /`,
+    `PUT/DELETE /<id>` (admin CRUD, `can_*` perms meant for a trusted role
+    only) and `GET /active` (`can_get_active`, meant to be granted broadly
+    — role-filtering happens in `is_effective`, not at the permission
+    layer). Grant `can_get_active` to whichever roles should see
+    notifications; it is **not** granted automatically.
+- Frontend (`extension/frontend/src/`):
+  - `useNotificationPolling.ts` — 5-minute interval poll of `/active`;
+    "last shown" per-notification state lives in `ctx.storage.local`
+    (per-browser), not Tier 3, since Tier 3 has no per-recipient
+    delivery-state concept. **Known gap:** `Notification.duration_seconds`
+    (from the SIP mockups) has no effect yet — Phase 0's
+    `ExtensionContext.window.show*Message(message)` takes no duration
+    parameter. Needs a Phase-0 follow-up, not a Phase-1 workaround.
+  - `AdminPanel.tsx` — table + modal form, registered at
+    `GlobalLocations.settings.panel` / `.menu`. Covers active/name/message/
+    category/target-roles/absolute-window/daily-timeframe/retrigger-interval
+    from the SIP mockups; `duration_seconds` deliberately left off the form
+    for the same reason as above (no point exposing a control that
+    silently does nothing).
+  - No SPA navigation primitive exists in the SDK yet (`navigation` is
+    read-only page-surface introspection) — the "open admin" command does a
+    full `window.location.assign()`, not a route push.
+- `ENABLE_UI_NOTIFICATIONS`-as-extension-setting (the plan's original
+  bullet on this) — not built yet; today `active` is per-notification, no
+  extension-wide kill switch beyond the global `ENABLE_EXTENSIONS` flag.
+  Small addition if wanted later (one more `ctx.storage.persistent.shared`
+  key), not blocking.
+
+**Not done yet:** manual end-to-end verification against a running host,
+and automated tests for any of the above.
+
+## Ecosystem bugs found while scaffolding (2026-09-09)
+
+Not this extension's bugs, but real, reproducible, and worth fixing
+upstream separately:
+
+- `superset-extensions-cli`'s scaffold template
+  (`templates/frontend/package.json.j2`) pins `react`/`react-dom` to
+  `^17.0.2` and `@types/react` to `^19.0.10`. The actual host
+  (`superset-frontend/package.json`) is on React `^18.3.0`. Every
+  scaffolded extension starts with a peer-dependency mismatch against its
+  own host.
+- The same template never lists `@apache-superset/core` under
+  `devDependencies` — only `peerDependencies` — despite the quick-start
+  docs explicitly saying it needs to be in both "to provide TypeScript
+  types during build." Every scaffolded extension fails `tsc` with
+  `TS2307: Cannot find module '@apache-superset/core'` out of the box.
+- The **published** `@apache-superset/core@0.1.0` npm package's own
+  peer deps (`react@^17.0.2`, `antd@^5.26.0`) are stale relative to the
+  current host (`react@^18.3.0`, `antd@^6.0.0`) — a fresh `npm install`
+  following the quick-start docs to the letter still needs
+  `--legacy-peer-deps` to succeed at all, on top of the two bugs above.
+
+Worked around locally the same way `superset-extension-notebooks` does
+(`file:` dependency on a local `superset-testbed3` checkout instead of the
+published package) — necessary here anyway, independent of the version
+skew, since the published package predates the Phase-0 `.window`/
+`GlobalLocations` additions this extension needs. Worth a small upstream
+PR to `superset-extensions-cli` (react/`@types/react` version bump + the
+missing `devDependencies` entry) and a `superset-core` republish; not done
+as part of this work.
 
 ## Repo layout (mirrors the sibling `superset-extension-notebooks` pattern)
 

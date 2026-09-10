@@ -1,0 +1,35 @@
+{
+  "name": "@community/notifications",
+  "version": "0.1.0",
+  "main": "dist/main.js",
+  "types": "dist/publicAPI.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "webpack serve --mode development",
+    "build": "webpack --stats-error-details --mode production"
+  },
+  "keywords": [],
+  "private": true,
+  "author": "",
+  "license": "Apache-2.0",
+  "description": "Admin-configurable in-app toast notifications (SIP-96)",
+  "peerDependencies": {
+    "@apache-superset/core": "*",
+    "antd": "^6.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@apache-superset/core": "file:../../../superset-testbed3/superset-frontend/packages/superset-core",
+    "@babel/preset-react": "^7.26.3",
+    "@babel/preset-typescript": "^7.26.0",
+    "@types/react": "^18.3.0",
+    "antd": "^6.6.2",
+    "copy-webpack-plugin": "^13.0.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.2",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.0"
+  }
+}

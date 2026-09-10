@@ -1,0 +1,9 @@
+{
+  "publisher": "community",
+  "name": "notifications",
+  "displayName": "In-App Notifications",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "description": "Admin-configurable in-app toast notifications, targeted by role and time window (SIP-96).",
+  "permissions": ["can_read", "can_write"]
+}
