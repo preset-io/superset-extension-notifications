@@ -18,6 +18,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from functools import wraps
+from typing import Any, Callable, TypeVar
 
 from flask import g, request, Response
 from flask_appbuilder.api import expose, protect, safe
@@ -26,6 +28,40 @@ from superset_core.rest_api.decorators import api
 
 from . import storage
 from .models import Notification, NotificationValidationError
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _with_extension_context(func: F) -> F:
+    """
+    Establish ambient extension context for the duration of a request.
+
+    Host gap, not a documented extension pattern: `@api`'s registration
+    (`core_api_injection.py`'s `inject_rest_api_implementations`) captures
+    the extension context only at class-decoration time (during extension
+    loading) and stores it on `_api_metadata["context"]` -- it never
+    re-establishes that context around an actual per-request dispatch to an
+    `@expose`d method. Without this, every `get_context()` call in this
+    file (including transitively, via `storage.py`) raises "must be called
+    within an extension context" on every real request; confirmed via a
+    live 500 against a running host, not just a read of the dispatch code.
+    `self._api_metadata["context"]` is a stable, single instance captured
+    once at module-import time (the extension module only loads once), so
+    reusing it per-request is safe here.
+    Reaches into `superset.extensions.context` (host internals, not the
+    public `superset_core` SDK) as a stopgap; the real fix belongs in the
+    host's REST dispatch, not in every extension author's own API class.
+    Drop this the moment that lands.
+    """
+
+    @wraps(func)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        from superset.extensions.context import use_context
+
+        with use_context(self._api_metadata["context"]):
+            return func(self, *args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
 
 
 @api(
@@ -50,6 +86,7 @@ class NotificationApi(RestApi):
     @expose("/", methods=("GET",))
     @protect()
     @safe
+    @_with_extension_context
     def list_notifications(self) -> Response:
         """Lists every configured notification, active or not.
         ---
@@ -79,6 +116,7 @@ class NotificationApi(RestApi):
     @expose("/", methods=("POST",))
     @protect()
     @safe
+    @_with_extension_context
     def create_notification(self) -> Response:
         """Creates a new notification.
         ---
@@ -115,6 +153,7 @@ class NotificationApi(RestApi):
     @expose("/<notification_id>", methods=("PUT",))
     @protect()
     @safe
+    @_with_extension_context
     def update_notification(self, notification_id: str) -> Response:
         """Updates an existing notification.
         ---
@@ -165,6 +204,7 @@ class NotificationApi(RestApi):
     @expose("/<notification_id>", methods=("DELETE",))
     @protect()
     @safe
+    @_with_extension_context
     def delete_notification(self, notification_id: str) -> Response:
         """Deletes a notification.
         ---
@@ -192,6 +232,7 @@ class NotificationApi(RestApi):
     @expose("/active", methods=("GET",))
     @protect()
     @safe
+    @_with_extension_context
     def get_active(self) -> Response:
         """Notifications currently effective for the calling user.
         ---
