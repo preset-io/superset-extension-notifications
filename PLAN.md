@@ -31,6 +31,38 @@ Tracking doc for implementing [apache/superset#24271](https://github.com/apache/
       (`useNotificationPolling` calls its first poll immediately on
       mount, not after the 5-minute interval).
 
+## Real-usage feedback (2026-09-11)
+
+Evan tried it against the running stack and flagged two things:
+
+- **Target roles picker showed "No data"** -- the `Select mode="tags"` had
+  no `options` at all, so it offered nothing to pick from (typing a role
+  name by hand still worked, but nobody could discover valid names). Fixed
+  in `AdminPanel.tsx`/`api.ts`: added `listRoles()`, hitting the host's own
+  `GET /api/v1/security/roles/` (not this extension's endpoint -- role
+  listing is core Superset data), and wired the result into the Select's
+  `options`. A `listRoles()` failure doesn't block the rest of the screen
+  from loading, just leaves the picker without autocomplete.
+- **His test alert only toasted once, never again on refresh** -- exactly
+  the designed behavior for `retrigger_interval_minutes: null` ("show once,
+  ever," tracked in `ctx.storage.local`), but he suggested a display
+  "once/every page load" switch. Turned out the field already existed
+  (`retrigger_interval_minutes`) but the polling hook's `?? 0` fallback
+  collapsed "unset" and "explicitly 0" into the same "never re-show"
+  behavior, so there was no way to actually select "every page load"
+  through the form even though the UI offered the field. Fixed in
+  `useNotificationPolling.ts`: null now means "once, ever" and `0` now
+  means "due on every poll" (since elapsed-time-since-any-past-timestamp is
+  always >= 0) -- and because the polling hook fires once immediately on
+  every page mount, `0` reads to an admin as "shows on every page load."
+  Clarified the form's label/placeholder/tooltip to spell this out instead
+  of leaving it as an undiscoverable trick. Added a Jest case distinguishing
+  0 from null; verified for real too (created a `retrigger_interval_minutes:
+  0` notification via the API, loaded two separate fresh pages, toast fired
+  both times).
+
+Both fixes committed, rebuilt, and redeployed to the running Docker stack.
+
 ## End-to-end setup (2026-09-10)
 
 - `ENABLE_EXTENSIONS` is already `True` in the stock Docker config.

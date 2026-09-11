@@ -67,3 +67,30 @@ export const updateNotification = (
 
 export const deleteNotification = (id: string): Promise<void> =>
   request<void>(`/${id}`, { method: 'DELETE' });
+
+export interface Role {
+  id: number;
+  name: string;
+}
+
+/**
+ * Lists Superset's configured roles, for the Target Roles picker in
+ * `AdminPanel`. Hits the host's own `/api/v1/security/roles/` (not this
+ * extension's `/extensions/...` prefix -- role listing is core Superset
+ * data, not something this extension owns) so admins can pick real role
+ * names instead of guessing/typing them from memory.
+ */
+export const listRoles = async (): Promise<Role[]> => {
+  const csrfToken = await authentication.getCSRFToken();
+  const response = await fetch('/api/v1/security/roles/?q=(page_size:100)', {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken ?? '',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+  const body = await response.json();
+  return body.result as Role[];
+};

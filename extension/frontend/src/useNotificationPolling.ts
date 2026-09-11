@@ -73,10 +73,17 @@ export function startNotificationPolling(): () => void {
       active.map(async notification => {
         const key = `${LAST_SHOWN_KEY_PREFIX}${notification.id}`;
         const lastShown = await ctx.storage.local.get<number>(key);
-        const retriggerMs = (notification.retrigger_interval_minutes ?? 0) * 60 * 1000;
+        const { retrigger_interval_minutes: retrigger } = notification;
+        // `?? 0` here would collapse "unset" (never re-show) and "0"
+        // (re-show on every poll) into the same behavior, since `0 * 60000`
+        // and `null * 60000`-via-fallback both evaluate falsy. Checking
+        // `retrigger != null` instead keeps 0 meaningful: elapsed time
+        // since any past timestamp is always >= 0, so a 0-minute interval
+        // is effectively "every page load" (each load re-mounts this hook,
+        // which polls immediately -- see the bottom of this function).
         const due =
           lastShown == null ||
-          (retriggerMs > 0 && Date.now() - lastShown >= retriggerMs);
+          (retrigger != null && Date.now() - lastShown >= retrigger * 60 * 1000);
         if (!due) {
           return;
         }

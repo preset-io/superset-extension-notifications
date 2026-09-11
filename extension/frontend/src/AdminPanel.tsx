@@ -35,6 +35,8 @@ import {
   createNotification,
   deleteNotification,
   listNotifications,
+  listRoles,
+  Role,
   updateNotification,
 } from './api';
 import { Notification, NotificationDraft } from './types';
@@ -68,6 +70,7 @@ const EMPTY_DRAFT: NotificationDraft = {
  */
 const AdminPanel: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Notification | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -90,6 +93,17 @@ const AdminPanel: React.FC = () => {
 
   useEffect(() => {
     refresh();
+    // Role names for the Target Roles picker below. A failure here isn't
+    // fatal to the rest of the screen -- the Select still accepts free-typed
+    // role names via its `mode="tags"`, just without autocomplete -- so it's
+    // reported but doesn't block loading the notification list.
+    listRoles()
+      .then(setRoles)
+      .catch(err =>
+        ctx.window.showErrorMessage(
+          err instanceof Error ? err.message : 'Failed to load roles',
+        ),
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -215,7 +229,12 @@ const AdminPanel: React.FC = () => {
             label="Target roles"
             tooltip="Leave empty to target every role"
           >
-            <Select mode="tags" tokenSeparators={[',']} />
+            <Select
+              mode="tags"
+              tokenSeparators={[',']}
+              options={roles.map(role => ({ value: role.name, label: role.name }))}
+              placeholder="Select or type role names"
+            />
           </Form.Item>
           <Form.Item name="start_time" label="Start time (ISO-8601, optional)">
             <Input placeholder="2026-09-01T00:00:00Z" />
@@ -238,9 +257,10 @@ const AdminPanel: React.FC = () => {
           </Form.Item>
           <Form.Item
             name="retrigger_interval_minutes"
-            label="Re-show after (minutes, optional)"
+            label="Re-show after (minutes)"
+            tooltip="Leave blank to show a user this notification only once, ever. 0 shows it again on every page load. Any other number waits that many minutes before showing it again."
           >
-            <Input type="number" min={0} />
+            <Input type="number" min={0} placeholder="Blank = once only, 0 = every page load" />
           </Form.Item>
         </Form>
       </Modal>

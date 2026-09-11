@@ -38,7 +38,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { extensions } from '@apache-superset/core';
 import AdminPanel from './AdminPanel';
-import { listNotifications } from './api';
+import { listNotifications, listRoles } from './api';
 import { Notification } from './types';
 
 jest.mock('./api', () => ({
@@ -47,6 +47,7 @@ jest.mock('./api', () => ({
   updateNotification: jest.fn(),
   deleteNotification: jest.fn(),
   getActiveNotifications: jest.fn(),
+  listRoles: jest.fn(),
 }));
 jest.mock('@apache-superset/core', () => ({
   extensions: { getContext: jest.fn() },
@@ -56,6 +57,7 @@ jest.mock('@apache-superset/core', () => ({
 const mockListNotifications = listNotifications as jest.MockedFunction<
   typeof listNotifications
 >;
+const mockListRoles = listRoles as jest.MockedFunction<typeof listRoles>;
 const mockGetContext = extensions.getContext as jest.MockedFunction<
   typeof extensions.getContext
 >;
@@ -88,6 +90,10 @@ describe('AdminPanel', () => {
       },
     } as never);
     mockListNotifications.mockResolvedValue([EXISTING]);
+    mockListRoles.mockResolvedValue([
+      { id: 1, name: 'Admin' },
+      { id: 2, name: 'Gamma' },
+    ]);
   });
 
   afterEach(() => {
@@ -143,6 +149,23 @@ describe('AdminPanel', () => {
     expect(
       screen.getByRole('button', { name: /new notification/i }),
     ).toBeInTheDocument();
+  });
+
+  it('still loads the notification list when fetching roles fails', async () => {
+    mockListRoles.mockRejectedValue(new Error('roles endpoint down'));
+    const showErrorMessage = jest.fn();
+    mockGetContext.mockReturnValue({
+      window: {
+        showInformationMessage: jest.fn(),
+        showWarningMessage: jest.fn(),
+        showErrorMessage,
+      },
+    } as never);
+
+    render(<AdminPanel />);
+
+    expect(await screen.findByText('Maintenance window')).toBeInTheDocument();
+    expect(showErrorMessage).toHaveBeenCalledWith('roles endpoint down');
   });
 
   it('surfaces a load failure via ctx.window instead of an empty table', async () => {

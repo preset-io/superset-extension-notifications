@@ -139,6 +139,25 @@ describe('startNotificationPolling', () => {
     stop();
   });
 
+  it('re-shows a notification on every poll when retrigger is explicitly 0', async () => {
+    mockGetActiveNotifications.mockResolvedValue([
+      makeNotification({ retrigger_interval_minutes: 0 }),
+    ]);
+
+    const stop = startNotificationPolling();
+    await flush();
+    expect(ctx.window.showInformationMessage).toHaveBeenCalledTimes(1);
+
+    // A 0-minute interval is "always due" -- elapsed time since any past
+    // timestamp is >= 0 -- so the very next poll re-shows it too, distinct
+    // from an unset interval (the test above), which shows only once ever.
+    jest.advanceTimersByTime(5 * 60 * 1000);
+    await flush();
+    expect(ctx.window.showInformationMessage).toHaveBeenCalledTimes(2);
+
+    stop();
+  });
+
   it('re-shows a notification once its retrigger interval elapses', async () => {
     mockGetActiveNotifications.mockResolvedValue([
       makeNotification({ retrigger_interval_minutes: 10 }),
