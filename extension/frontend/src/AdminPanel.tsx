@@ -22,6 +22,7 @@ import {
   Button,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -260,7 +261,16 @@ const AdminPanel: React.FC = () => {
             label="Re-show after (minutes)"
             tooltip="Leave blank to show a user this notification only once, ever. 0 shows it again on every page load. Any other number waits that many minutes before showing it again."
           >
-            <Input type="number" min={0} placeholder="Blank = once only, 0 = every page load" />
+            {/* antd's plain Input with type="number" reports its value as a
+                string, which the backend's isinstance(value, int) check
+                then rejects outright -- including 0, the field's own
+                documented "every page load" case. InputNumber reports a
+                real number and must stay InputNumber here. */}
+            <InputNumber
+              min={0}
+              style={{ width: '100%' }}
+              placeholder="Blank = once only, 0 = every page load"
+            />
           </Form.Item>
         </Form>
       </Modal>
