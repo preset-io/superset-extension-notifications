@@ -272,6 +272,17 @@ const AdminPanel: React.FC = () => {
               placeholder="Blank = once only, 0 = every page load"
             />
           </Form.Item>
+          <Form.Item
+            name="duration_seconds"
+            label="Toast duration (seconds)"
+            tooltip="Leave blank to use the host's default duration for this category."
+          >
+            <InputNumber
+              min={0}
+              style={{ width: '100%' }}
+              placeholder="Blank = host default"
+            />
+          </Form.Item>
         </Form>
       </Modal>
     </div>
