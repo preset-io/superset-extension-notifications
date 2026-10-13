@@ -26,13 +26,30 @@ const LAST_SHOWN_KEY_PREFIX = 'lastShown:';
 
 type ExtensionCtx = ReturnType<typeof extensions.getContext>;
 
+type ShowMessage = (
+  message: string,
+  options?: { duration?: number },
+) => void;
+
 const showToast = (ctx: ExtensionCtx, notification: Notification) => {
-  const showByCategory: Record<NotificationCategory, (message: string) => void> = {
+  const showByCategory: Record<NotificationCategory, ShowMessage> = {
     info: ctx.window.showInformationMessage,
     warning: ctx.window.showWarningMessage,
     error: ctx.window.showErrorMessage,
   };
-  showByCategory[notification.category](notification.message);
+  const show = showByCategory[notification.category];
+  // `duration_seconds` is seconds (matches the admin form and the backend
+  // model); the host's toast option takes milliseconds. `null` means "defer
+  // to the host's per-severity default" -- call with no options at all
+  // rather than an explicit `duration: undefined`, so the host's own
+  // per-category fallback applies.
+  if (notification.duration_seconds != null) {
+    show(notification.message, {
+      duration: notification.duration_seconds * 1000,
+    });
+  } else {
+    show(notification.message);
+  }
 };
 
 /**
@@ -45,11 +62,6 @@ const showToast = (ctx: ExtensionCtx, notification: Notification) => {
  * delivery-state concept (see `Notification.retrigger_interval_minutes` in
  * the backend model), and this is inherently a per-viewer UX concern, not
  * data an admin needs to query.
- *
- * `Notification.duration_seconds` from the SIP mockups isn't applied here --
- * the Phase-0 `ExtensionContext.window` surface (`show*Message(message)`)
- * takes no duration parameter yet. That's a gap in the Phase-0 core diff to
- * close later, not something to work around here.
  */
 export function startNotificationPolling(): () => void {
   const ctx = extensions.getContext();

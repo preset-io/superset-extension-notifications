@@ -30,6 +30,41 @@ Tracking doc for implementing [apache/superset#24271](https://github.com/apache/
       prior interaction, and the polling hook toasts it automatically
       (`useNotificationPolling` calls its first poll immediately on
       mount, not after the 5-minute interval).
+- [x] `duration_seconds` wired end-to-end: form control in `AdminPanel.tsx`,
+      conversion to the Phase-0 `duration` toast option (ms) in
+      `useNotificationPolling.ts`, 2 new Jest cases, `tsc --noEmit` clean
+      against a freshly built `@apache-superset/core` (2026-10-13) — see
+      below.
+
+## `duration_seconds` closed out (2026-10-13)
+
+The Phase-0 gap this doc originally flagged (`ExtensionContext.window`
+taking no duration parameter) closed on its own between 2026-09-10 and now:
+`apache/superset#44101`'s branch picked up `ExtensionMessageOptions.duration`
+(milliseconds) on `showInformationMessage`/`showWarningMessage`/
+`showErrorMessage`, wired through to the existing per-severity
+`addInfoToast`/`addWarningToast`/`addDangerToast` defaults in
+`MessageToasts/actions.ts`. So this was Phase-1-only work:
+
+- `useNotificationPolling.ts`'s `showToast` now converts
+  `duration_seconds` (seconds) to the host's `duration` option
+  (milliseconds), calling `show(message)` with no second argument at all
+  when `duration_seconds` is `null` (not an explicit `duration: undefined`)
+  so the host's own per-severity default actually applies, and so the two
+  pre-existing single-arg-call test assertions didn't need to change.
+- `AdminPanel.tsx` gained a "Toast duration (seconds)" `InputNumber` field,
+  mirroring the existing `retrigger_interval_minutes` field's layout/tooltip
+  conventions.
+- 2 new `useNotificationPolling.test.ts` cases (conversion, and omission
+  when unset).
+- Verified `tsc --noEmit -p tsconfig.json` clean against a real built
+  `@apache-superset/core` (not just read the type definitions) — needed a
+  fresh `npm ci` + `npm run plugins:build --scope=@apache-superset/core` in
+  a worktree checked out to the PR #44101 branch, since the `file:`
+  devDependency here points at a sibling `superset-testbed3` checkout
+  whose current branch doesn't control which commit of `superset-core` gets
+  built; the main checkout happened to be on an unrelated branch at the
+  time.
 
 ## Real-usage feedback (2026-09-11)
 
@@ -290,16 +325,16 @@ built out:
   - `useNotificationPolling.ts` — 5-minute interval poll of `/active`;
     "last shown" per-notification state lives in `ctx.storage.local`
     (per-browser), not Tier 3, since Tier 3 has no per-recipient
-    delivery-state concept. **Known gap:** `Notification.duration_seconds`
-    (from the SIP mockups) has no effect yet — Phase 0's
-    `ExtensionContext.window.show*Message(message)` takes no duration
-    parameter. Needs a Phase-0 follow-up, not a Phase-1 workaround.
+    delivery-state concept. `Notification.duration_seconds` (from the SIP
+    mockups) is converted to milliseconds and passed as the Phase-0
+    `ExtensionContext.window.show*Message(message, options)` `duration`
+    option, which landed in the Phase-0 core diff after this note was
+    originally written; `null` omits the option entirely so the host's own
+    per-severity default applies (see 2026-10-13 update below).
   - `AdminPanel.tsx` — table + modal form, registered at
     `GlobalLocations.settings.panel` / `.menu`. Covers active/name/message/
-    category/target-roles/absolute-window/daily-timeframe/retrigger-interval
-    from the SIP mockups; `duration_seconds` deliberately left off the form
-    for the same reason as above (no point exposing a control that
-    silently does nothing).
+    category/target-roles/absolute-window/daily-timeframe/retrigger-interval/
+    duration from the SIP mockups.
   - No SPA navigation primitive exists in the SDK yet (`navigation` is
     read-only page-surface introspection) — the "open admin" command does a
     full `window.location.assign()`, not a route push.

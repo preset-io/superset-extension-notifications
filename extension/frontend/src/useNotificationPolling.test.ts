@@ -180,6 +180,33 @@ describe('startNotificationPolling', () => {
     stop();
   });
 
+  it('converts duration_seconds to milliseconds for the toast option', async () => {
+    mockGetActiveNotifications.mockResolvedValue([
+      makeNotification({ duration_seconds: 10 }),
+    ]);
+
+    const stop = startNotificationPolling();
+    await flush();
+
+    expect(ctx.window.showInformationMessage).toHaveBeenCalledWith(
+      'DB maintenance tonight',
+      { duration: 10000 },
+    );
+    stop();
+  });
+
+  it('omits the duration option when duration_seconds is unset', async () => {
+    mockGetActiveNotifications.mockResolvedValue([makeNotification()]);
+
+    const stop = startNotificationPolling();
+    await flush();
+
+    expect(ctx.window.showInformationMessage).toHaveBeenCalledWith(
+      'DB maintenance tonight',
+    );
+    stop();
+  });
+
   it('stops polling once the returned teardown is called', async () => {
     const stop = startNotificationPolling();
     await flush();
