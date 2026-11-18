@@ -17,25 +17,25 @@
  * under the License.
  */
 
-import { extensions } from '@apache-superset/core';
+import { extensions, window as supersetWindow } from '@apache-superset/core';
 import { getActiveNotifications } from './api';
 import { Notification, NotificationCategory } from './types';
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 const LAST_SHOWN_KEY_PREFIX = 'lastShown:';
 
-type ExtensionCtx = ReturnType<typeof extensions.getContext>;
-
 type ShowMessage = (
   message: string,
   options?: { duration?: number },
 ) => void;
 
-const showToast = (ctx: ExtensionCtx, notification: Notification) => {
+// The host's global toast surface (the SDK's `window` namespace), aliased so
+// it doesn't shadow the browser's `window`.
+const showToast = (notification: Notification) => {
   const showByCategory: Record<NotificationCategory, ShowMessage> = {
-    info: ctx.window.showInformationMessage,
-    warning: ctx.window.showWarningMessage,
-    error: ctx.window.showErrorMessage,
+    info: supersetWindow.showInformationMessage,
+    warning: supersetWindow.showWarningMessage,
+    error: supersetWindow.showErrorMessage,
   };
   const show = showByCategory[notification.category];
   // `duration_seconds` is seconds (matches the admin form and the backend
@@ -99,7 +99,7 @@ export function startNotificationPolling(): () => void {
         if (!due) {
           return;
         }
-        showToast(ctx, notification);
+        showToast(notification);
         await ctx.storage.local.set(key, Date.now());
       }),
     );

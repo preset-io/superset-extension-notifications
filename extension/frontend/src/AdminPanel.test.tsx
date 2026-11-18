@@ -36,7 +36,7 @@
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { extensions } from '@apache-superset/core';
+import { window as supersetWindow } from '@apache-superset/core';
 import AdminPanel from './AdminPanel';
 import { listNotifications, listRoles } from './api';
 import { Notification } from './types';
@@ -50,7 +50,11 @@ jest.mock('./api', () => ({
   listRoles: jest.fn(),
 }));
 jest.mock('@apache-superset/core', () => ({
-  extensions: { getContext: jest.fn() },
+  window: {
+    showInformationMessage: jest.fn(),
+    showWarningMessage: jest.fn(),
+    showErrorMessage: jest.fn(),
+  },
   authentication: { getCSRFToken: jest.fn() },
 }));
 
@@ -58,9 +62,7 @@ const mockListNotifications = listNotifications as jest.MockedFunction<
   typeof listNotifications
 >;
 const mockListRoles = listRoles as jest.MockedFunction<typeof listRoles>;
-const mockGetContext = extensions.getContext as jest.MockedFunction<
-  typeof extensions.getContext
->;
+const showErrorMessage = supersetWindow.showErrorMessage as jest.Mock;
 
 const EXISTING: Notification = {
   id: 'n1',
@@ -82,13 +84,6 @@ const EXISTING: Notification = {
 
 describe('AdminPanel', () => {
   beforeEach(() => {
-    mockGetContext.mockReturnValue({
-      window: {
-        showInformationMessage: jest.fn(),
-        showWarningMessage: jest.fn(),
-        showErrorMessage: jest.fn(),
-      },
-    } as never);
     mockListNotifications.mockResolvedValue([EXISTING]);
     mockListRoles.mockResolvedValue([
       { id: 1, name: 'Admin' },
@@ -153,14 +148,6 @@ describe('AdminPanel', () => {
 
   it('still loads the notification list when fetching roles fails', async () => {
     mockListRoles.mockRejectedValue(new Error('roles endpoint down'));
-    const showErrorMessage = jest.fn();
-    mockGetContext.mockReturnValue({
-      window: {
-        showInformationMessage: jest.fn(),
-        showWarningMessage: jest.fn(),
-        showErrorMessage,
-      },
-    } as never);
 
     render(<AdminPanel />);
 
@@ -168,16 +155,8 @@ describe('AdminPanel', () => {
     expect(showErrorMessage).toHaveBeenCalledWith('roles endpoint down');
   });
 
-  it('surfaces a load failure via ctx.window instead of an empty table', async () => {
+  it('surfaces a load failure as an error toast instead of an empty table', async () => {
     mockListNotifications.mockRejectedValue(new Error('network blip'));
-    const showErrorMessage = jest.fn();
-    mockGetContext.mockReturnValue({
-      window: {
-        showInformationMessage: jest.fn(),
-        showWarningMessage: jest.fn(),
-        showErrorMessage,
-      },
-    } as never);
 
     render(<AdminPanel />);
 
