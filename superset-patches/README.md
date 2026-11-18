@@ -14,15 +14,20 @@ checkout of `feat/extensions-notifications-poc`, not `master`.
 
 ## What it adds
 
-- `ExtensionContext.window` (`showInformationMessage` / `showWarningMessage`
-  / `showErrorMessage`) — the toast surface `useNotificationPolling.ts`
-  fires through.
-- `GlobalLocations.settings.{menu,panel}` (`src/core/contributions.ts`) — a
-  Settings-menu location and a matching full-page view location, outside
-  SQL Lab, that `index.tsx` registers the admin screen into.
-- The `/extensions/view/:viewId` route (`src/pages/ExtensionView`) that
-  hosts a single extension-registered view, since `resolveView` isn't part
-  of the public `@apache-superset/core` SDK.
+The PR now follows [SIP-235](https://github.com/apache/superset/issues/45248)
+(navbar extension points and extension-owned pages). What this extension
+uses from it:
+
+- The SDK's `window` namespace (`showInformationMessage` /
+  `showWarningMessage` / `showErrorMessage`), the toast surface
+  `useNotificationPolling.ts` and `AdminPanel.tsx` fire through.
+- Extension pages: a view registered at `views.Locations.page`
+  (`global.page`) is served at `/extensions/pages/<id>`, optionally gated on
+  a permission. The admin screen is `community.notifications.admin`, gated
+  on `can_list_notifications` from this extension's own API.
+- `page` menu items at `menus.Locations.settingsMenu`, which the host
+  renders as a link in the Settings dropdown (and hides from users without
+  the page's permission).
 
 Once #44101 merges, this directory (and the `file:` dependency on a local
 `superset-testbed3` checkout noted in the top-level README) both go away.

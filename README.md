@@ -26,8 +26,8 @@ Requires the `feat/extensions-notifications-poc` branch on `apache/superset`
 `extension/frontend`'s `@apache-superset/core` devDependency is a `file:`
 reference into a sibling `superset-testbed3` checkout (matching the pattern
 in `superset-extension-notebooks`), not the published npm package — the
-published `0.1.0` package predates both the Phase-0 `.window`/
-`GlobalLocations` additions this extension needs and, independently, has
+published `0.1.0` package predates both the `window` namespace and the
+SIP-235 page/menu additions this extension needs and, independently, has
 peer dependencies (`react@^17`, `antd@^5.26`) that no longer match the
 actual host (`react@^18.3`, `antd@^6`). `npm install` in `extension/frontend`
 needs `--legacy-peer-deps` until that's resolved upstream.

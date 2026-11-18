@@ -31,7 +31,7 @@ import {
   Table,
   Tag,
 } from 'antd';
-import { extensions } from '@apache-superset/core';
+import { window as supersetWindow } from '@apache-superset/core';
 import {
   createNotification,
   deleteNotification,
@@ -77,14 +77,12 @@ const AdminPanel: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm<NotificationDraft>();
 
-  const ctx = extensions.getContext();
-
   const refresh = async () => {
     setLoading(true);
     try {
       setNotifications(await listNotifications());
     } catch (err) {
-      ctx.window.showErrorMessage(
+      supersetWindow.showErrorMessage(
         err instanceof Error ? err.message : 'Failed to load notifications',
       );
     } finally {
@@ -101,7 +99,7 @@ const AdminPanel: React.FC = () => {
     listRoles()
       .then(setRoles)
       .catch(err =>
-        ctx.window.showErrorMessage(
+        supersetWindow.showErrorMessage(
           err instanceof Error ? err.message : 'Failed to load roles',
         ),
       );
@@ -123,10 +121,10 @@ const AdminPanel: React.FC = () => {
   const handleDelete = async (id: string) => {
     try {
       await deleteNotification(id);
-      ctx.window.showInformationMessage('Notification deleted');
+      supersetWindow.showInformationMessage('Notification deleted');
       refresh();
     } catch (err) {
-      ctx.window.showErrorMessage(
+      supersetWindow.showErrorMessage(
         err instanceof Error ? err.message : 'Failed to delete notification',
       );
     }
@@ -137,15 +135,15 @@ const AdminPanel: React.FC = () => {
     try {
       if (editing) {
         await updateNotification(editing.id, draft);
-        ctx.window.showInformationMessage('Notification updated');
+        supersetWindow.showInformationMessage('Notification updated');
       } else {
         await createNotification(draft);
-        ctx.window.showInformationMessage('Notification created');
+        supersetWindow.showInformationMessage('Notification created');
       }
       setModalOpen(false);
       refresh();
     } catch (err) {
-      ctx.window.showErrorMessage(
+      supersetWindow.showErrorMessage(
         err instanceof Error ? err.message : 'Failed to save notification',
       );
     }

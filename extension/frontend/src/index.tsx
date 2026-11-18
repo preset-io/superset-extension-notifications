@@ -17,44 +17,34 @@
  * under the License.
  */
 
-import { commands, menus, views } from '@apache-superset/core';
+import { menus, views } from '@apache-superset/core';
 import AdminPanel from './AdminPanel';
 import { startNotificationPolling } from './useNotificationPolling';
 
-const ADMIN_VIEW_ID = 'community.notifications.admin';
-const OPEN_ADMIN_COMMAND_ID = 'community.notifications.openAdmin';
+// Page ids must start with this extension's id (`community.notifications`).
+const ADMIN_PAGE_ID = 'community.notifications.admin';
 
-// Requires the Phase-0 core diff (branch `feat/extensions-notifications-poc`
-// on apache/superset, PR #44101): `GlobalLocations.settings.{menu,panel}`
-// and `ExtensionContext.window`. Not yet on `master`.
-const GLOBAL_SETTINGS_MENU = 'global.settingsMenu';
-const GLOBAL_SETTINGS_PANEL = 'global.settingsPanel';
-
+// The admin screen is an extension page (SIP-235): served at
+// `/extensions/pages/community.notifications.admin`, and only shown to users
+// who can list notifications through this extension's own API, which is the
+// same permission guarding the data behind it.
 views.registerView(
-  { id: ADMIN_VIEW_ID, name: 'In-App Notifications' },
-  GLOBAL_SETTINGS_PANEL,
+  { id: ADMIN_PAGE_ID, name: 'In-App Notifications' },
+  views.Locations.page,
   AdminPanel,
-);
-
-commands.registerCommand(
   {
-    id: OPEN_ADMIN_COMMAND_ID,
-    title: 'In-App Notifications',
-    description: 'Manage admin-configured in-app notifications',
-  },
-  () => {
-    // No SPA navigation primitive is exposed to extensions yet (see
-    // `@apache-superset/core`'s `navigation` namespace, which is read-only
-    // page-surface introspection, not a `navigate()` call) -- a full
-    // location change is the only way to reach the host-rendered
-    // `/extensions/view/:viewId` route from here.
-    window.location.assign(`/extensions/view/${ADMIN_VIEW_ID}`);
+    classPermissionName: 'community_notifications',
+    methodPermissionName: 'list_notifications',
   },
 );
 
 menus.registerMenuItem(
-  { view: ADMIN_VIEW_ID, command: OPEN_ADMIN_COMMAND_ID },
-  GLOBAL_SETTINGS_MENU,
+  {
+    page: ADMIN_PAGE_ID,
+    icon: 'BellOutlined',
+    description: 'Manage admin-configured in-app notifications',
+  },
+  menus.Locations.settingsMenu,
   'primary',
 );
 

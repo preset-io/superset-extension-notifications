@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { extensions } from '@apache-superset/core';
+import { extensions, window as supersetWindow } from '@apache-superset/core';
 import { getActiveNotifications } from './api';
 import { startNotificationPolling } from './useNotificationPolling';
 import { Notification } from './types';
@@ -25,6 +25,11 @@ import { Notification } from './types';
 jest.mock('./api');
 jest.mock('@apache-superset/core', () => ({
   extensions: { getContext: jest.fn() },
+  window: {
+    showInformationMessage: jest.fn(),
+    showWarningMessage: jest.fn(),
+    showErrorMessage: jest.fn(),
+  },
 }));
 
 const mockGetActiveNotifications = getActiveNotifications as jest.MockedFunction<
@@ -68,11 +73,9 @@ describe('startNotificationPolling', () => {
     jest.useFakeTimers();
     localStore = new Map();
     ctx = {
-      window: {
-        showInformationMessage: jest.fn(),
-        showWarningMessage: jest.fn(),
-        showErrorMessage: jest.fn(),
-      },
+      // Toasts go through the SDK's `window` namespace, not the context;
+      // pointing `ctx.window` at that mock keeps the assertions below terse.
+      window: supersetWindow as unknown as typeof ctx.window,
       storage: {
         local: {
           get: jest.fn((key: string) => Promise.resolve(localStore.get(key) ?? null)),
